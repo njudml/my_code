@@ -60,6 +60,10 @@ public:
 	string getPeerIp() const;
 	
 	uint16_t getPeerPort() const;
+	
+	string getLocalAddress() const;
+	
+	string getPeerAddress() const;
 
 private:
 	enum StateE

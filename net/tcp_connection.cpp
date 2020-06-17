@@ -7,6 +7,17 @@
 #include <glog/logging.h>
 #include <co_routine.h>
 
+void defaultConnectionCallback(const TcpConnectionPtr &conn)
+{
+	LOG(INFO) << conn->getLocalAddress() << " -> " << conn->getPeerAddress() << " is "
+	          << (conn->connected() ? "UP" : "DOWN");
+}
+
+void defaultMessageCallback(const TcpConnectionPtr &conn, Buffer *buff)
+{
+	LOG(INFO)<<buff->retrieveAllAsString();
+}
+
 TcpConnection::TcpConnection(TaskExecutor *executor, const string &name, int sockFd)
 		: executor_(executor),
 		  name_(name),
@@ -103,28 +114,30 @@ void TcpConnection::read()
 			if (readret > 0)
 			{
 				messageCallback_(shared_from_this(), &inputBuffer_);
-				read();
 			}
 			else if (readret == 0)
 			{
 				setState(kDisConnected);
 				connectionCallback_(shared_from_this());
 				closeCallback_(shared_from_this());
+				return;
 			}
 			else
 			{
 				int err = sockets::getSocketError(sock_->fd());
 				LOG(ERROR) << "[" << name_ << "] - SO_ERROR = " << err << " " << strerror(err);
+				return;
 			}
 		}
+		read();
 	});
 }
 
 void TcpConnection::connectEstablished()
 {
 	setState(kConnected);
-	read();
 	connectionCallback_(shared_from_this());
+	read();
 }
 
 void TcpConnection::connectDestroyed()
@@ -155,4 +168,14 @@ uint16_t TcpConnection::getPeerPort() const
 {
 	auto peeraddr = sockets::getPeerAddr(sock_->fd());
 	return be16toh(peeraddr.sin_port);
+}
+
+string TcpConnection::getLocalAddress() const
+{
+	return sockets::getLocalAddrAsString(sock_->fd());
+}
+
+string TcpConnection::getPeerAddress() const
+{
+	return sockets::getPeerAddrAsString(sock_->fd());
 }

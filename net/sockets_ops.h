@@ -8,12 +8,17 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <cstdint>
+#include "string_piece.h"
 
 namespace sockets
 {
-int create_socket();
+void setSockaddr(const StringArg &ip, uint16_t port,struct sockaddr_in &addr);
+
+int createSocket();
 
 int connect(int sockFd, const struct sockaddr *addr);
+
+int connect(int sockFd, const StringArg &ip, uint16_t port);
 
 void listen(int sockFd);
 
@@ -29,20 +34,26 @@ struct sockaddr_in getLocalAddr(int sockFd);
 
 struct sockaddr_in getPeerAddr(int sockFd);
 
-int setNoDelay(int sockFd,bool on);
+string getLocalAddrAsString(int sockFd);
 
-int setReuseAddr(int sockFd,bool on);
+string getPeerAddrAsString(int sockFd);
 
-int setReusePort(int sockFd,bool on);
+int setNoDelay(int sockFd, bool on);
 
-void setKeepAlive(int sockFd,bool on);
+int setReuseAddr(int sockFd, bool on);
 
-void setCloseWait(int sockFd,int seconds);
+int setReusePort(int sockFd, bool on);
+
+void setKeepAlive(int sockFd, bool on);
+
+void setCloseWait(int sockFd, int seconds);
 
 const struct sockaddr *sockaddr_cast(const struct sockaddr_in *addr);
 
 const struct sockaddr_in *sockaddr_in_cast(const struct sockaddr *addr);
+
 struct sockaddr *sockaddr_cast(struct sockaddr_in *addr);
+
 struct sockaddr_in *sockaddr_in_cast(struct sockaddr *addr);
 }
 

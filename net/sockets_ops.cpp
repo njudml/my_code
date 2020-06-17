@@ -20,7 +20,28 @@ void setNonBlockAndCloseOnExec(int fd)
 
 namespace sockets
 {
-int create_socket()
+void setSockaddr(const StringArg &ip, uint16_t port, sockaddr_in &addr)
+{
+	bzero(&addr, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htobe16(port);
+	const char *cIP = ip.c_str();
+	int nIP = 0;
+	if (!cIP || '\0' == *cIP
+	    || 0 == strcmp(cIP, "0") || 0 == strcmp(cIP, "0.0.0.0")
+	    || 0 == strcmp(cIP, "*")
+			)
+	{
+		nIP = htonl(INADDR_ANY);
+	}
+	else
+	{
+		nIP = inet_addr(cIP);
+	}
+	addr.sin_addr.s_addr = nIP;
+}
+
+int createSocket()
 {
 	int fd = ::socket(AF_INET, SOCK_STREAM, 0);
 	if (fd < 0)
@@ -36,6 +57,13 @@ int connect(int sockFd, const struct sockaddr *addr)
 	return ::connect(sockFd, addr, static_cast<socklen_t>(sizeof(struct sockaddr_in)));
 }
 
+int sockets::connect(int sockFd, const StringArg &ip, uint16_t port)
+{
+	struct sockaddr_in addr;
+	setSockaddr(ip, port, addr);
+	return ::connect(sockFd, sockaddr_cast(&addr), static_cast<socklen_t>(sizeof(addr)));
+}
+
 void listen(int sockFd)
 {
 	int ret = ::listen(sockFd, SOMAXCONN);
@@ -48,19 +76,16 @@ void listen(int sockFd)
 void bind(int sockFd, const char *ip, uint16_t port)
 {
 	struct sockaddr_in addr;
-	bzero(&addr, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htobe16(port);
-	addr.sin_addr.s_addr = inet_addr(ip);
+	setSockaddr(ip, port, addr);
 	if (::bind(sockFd, (struct sockaddr *) &addr, sizeof(addr)) < 0)
 	{
 		LOG(FATAL) << "bind error";
 	}
 }
 
-int setNoDelay(int sockFd,bool on)
+int setNoDelay(int sockFd, bool on)
 {
-	int opt = on?1:0;
+	int opt = on ? 1 : 0;
 	int ret = setsockopt(sockFd, IPPROTO_TCP, TCP_NODELAY, (char *) &opt, static_cast<socklen_t>(sizeof(opt)));
 	if (ret < 0)
 	{
@@ -69,9 +94,9 @@ int setNoDelay(int sockFd,bool on)
 	return ret;
 }
 
-int setReuseAddr(int sockFd,bool on)
+int setReuseAddr(int sockFd, bool on)
 {
-	int opt = on?1:0;
+	int opt = on ? 1 : 0;
 	int ret = ::setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &opt, static_cast<socklen_t>(sizeof(opt)));
 	if (ret < 0)
 	{
@@ -80,9 +105,9 @@ int setReuseAddr(int sockFd,bool on)
 	return ret;
 }
 
-int setReusePort(int sockFd,bool on)
+int setReusePort(int sockFd, bool on)
 {
-	int opt = on?1:0;
+	int opt = on ? 1 : 0;
 	int ret = ::setsockopt(sockFd, SOL_SOCKET, SO_REUSEPORT, &opt, static_cast<socklen_t>(sizeof(opt)));
 	if (ret < 0)
 	{
@@ -133,24 +158,24 @@ struct sockaddr_in getPeerAddr(int sockFd)
 	return peeraddr;
 }
 
-void setCloseWait(int sockFd,int seconds)
+void setCloseWait(int sockFd, int seconds)
 {
 	linger l;
 	l.l_onoff = seconds > 0;
-	l.l_linger=seconds;
-	if(::setsockopt(sockFd,SOL_SOCKET,SO_LINGER,&l,sizeof(l))<0)
+	l.l_linger = seconds;
+	if (::setsockopt(sockFd, SOL_SOCKET, SO_LINGER, &l, sizeof(l)) < 0)
 	{
-		LOG(ERROR)	<< "set SO_LINER failed";
+		LOG(ERROR) << "set SO_LINER failed";
 	}
 }
 
 void setKeepAlive(int sockFd, bool on)
 {
-	int opt=on?1:0;
-	auto optlen = static_cast<socklen_t>(opt);
-	if(::setsockopt(sockFd,SOL_SOCKET,SO_KEEPALIVE,&opt,optlen)<0)
+	int opt = on ? 1 : 0;
+	auto optlen = static_cast<socklen_t>(sizeof opt);
+	if (::setsockopt(sockFd, SOL_SOCKET, SO_KEEPALIVE, &opt, optlen) < 0)
 	{
-		LOG(ERROR)<<"set SO_KEEPALIVE failed";
+		LOG(ERROR) << "set SO_KEEPALIVE failed --- " << strerror(errno);
 	}
 }
 
@@ -182,5 +207,22 @@ void close(int sockFd)
 		LOG(ERROR) << "close socket error";
 	}
 }
+
+string getLocalAddrAsString(int sockFd)
+{
+	auto localaddr = sockets::getLocalAddr(sockFd);
+	string addr = inet_ntoa(localaddr.sin_addr);
+	addr.append(":").append(std::to_string(be16toh(localaddr.sin_port)));
+	return addr;
+}
+
+string getPeerAddrAsString(int sockFd)
+{
+	auto peeraddr = sockets::getPeerAddr(sockFd);
+	string addr = inet_ntoa(peeraddr.sin_addr);
+	addr.append(":").append(std::to_string(be16toh(peeraddr.sin_port)));
+	return addr;
+}
+
 
 }

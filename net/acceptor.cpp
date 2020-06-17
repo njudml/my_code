@@ -9,11 +9,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <glog/logging.h>
 
 
 Acceptor::Acceptor(TaskExecutor *executor, const StringArg &ip, uint16_t port, bool reuseport)
 		: executor_(executor),
-		  acceptSocket_(sockets::create_socket()),
+		  acceptSocket_(sockets::createSocket()),
 		  listenning_(false),
 		  idleFd_(::open("/dev/null", O_RDONLY | O_CLOEXEC))
 {
@@ -33,6 +34,7 @@ void Acceptor::listen()
 	listenning_ = true;
 	acceptSocket_.listen();
 	executor_->run([this] {
+		LOG(INFO) << "server start";
 		while (listenning_)
 		{
 			int connfd = acceptSocket_.accept();

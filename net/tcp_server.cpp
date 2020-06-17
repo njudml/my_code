@@ -6,12 +6,16 @@
 
 #include "tcp_server.h"
 #include "acceptor.h"
+#include <co_routine.h>
 
 TcpServer::TcpServer(TaskExecutor *executor, const StringArg &listenIp, uint16_t listenPort, const string &name,
                      bool reusePort)
 		: executor_(executor),
 		  name_(name),
 		  acceptor_(new Acceptor(executor, listenIp, listenPort, reusePort)),
+		  connectionCallback_(defaultConnectionCallback),
+		  messageCallback_(defaultMessageCallback),
+		  started_(false),
 		  nextConnId_(1)
 {
 	acceptor_->setNewConnectionCallback(
@@ -30,17 +34,17 @@ TcpServer::~TcpServer()
 
 void TcpServer::start()
 {
-	if (started_ == false)
+	if (!started_)
 	{
-		started_ == true;
+		started_ = true;
 		acceptor_->listen();
 	}
+	co_eventloop(co_get_epoll_ct(), nullptr, nullptr);
 }
 
 void TcpServer::newConnection(int sockfd)
 {
-	string ip = inet_ntoa(sockets::getPeerAddr(sockfd).sin_addr);
-	string connName = name_ + "-" + ip + "#" + std::to_string(nextConnId_);
+	string connName = name_ + "-" + sockets::getPeerAddrAsString(sockfd) + "#" + std::to_string(nextConnId_);
 	++nextConnId_;
 	auto conn = std::make_shared<TcpConnection>(executor_, connName, sockfd);
 	connections_[connName] = conn;
